@@ -24,6 +24,9 @@ def main():
     coms.amplitude=1000 #amps of pulse in V
     coms.period=10**6 #time between pulse in micro s
     coms.turn_on()
+    time.sleep(10)
+    coms.turn_off()
+    exit() #testing comms to pulser for now
     f=open('data.txt','w')
     f.write('amplitude, pi timing, gps coord, gps timing')
     while(True):
@@ -91,14 +94,13 @@ class pulser_comms():
             io=0b00000001
         amp_bits=self.convert_voltage_to_dec(amplitude)
         per_bits=self.convert_period_to_dec(period)
-        flag
-        #handle crc
+        #handle crc : empty for now
         to_send=struct.pack(self.code,preamble,size,command_code,io,amp_bits,per_bits,flag)
         
         return to_send
     
     def build_flag_byte(flag):
-        return
+        return 0
     def convert_voltage_to_dec(self,amplitude):
         if(amplitude<1000):
             print('below range')
@@ -139,14 +141,14 @@ class pulser_comms():
 
         #create general function to read the contents of a returned packet
     def turn_on(self):
-        self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,1,'0110'))
+        self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,1,0b00000110))
         start_time=time()
         time.sleep(.1)
         returned_bytes=self.pulser.read()
         self.read_pulser_response(returned_bytes)
 
     def turn_off(self):
-        self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,1,'0000'))
+        self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,1,0b00000000))
 
     def request_info(self):
         self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,0,'0000'))
