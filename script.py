@@ -3,6 +3,7 @@ import numpy as np
 import serial
 try:
     import RPi.GPIO as gpio
+    from picamera import PiCamera
 except:
     print('pi modules not loaded')
 import struct
@@ -14,6 +15,45 @@ import struct
 pulser_port='serial0'
 pulser_baud=112500
 timeout=1
+
+def main():
+    print('main')
+    coms=pulser_comms() #initalize pulser comms
+    swi=switch() #initialize switch class
+    gps=gps_comms()
+    coms.amplitude=1000 #amps of pulse in V
+    coms.period=10**6 #time between pulse in micro s
+    coms.turn_on()
+    f=open('data.txt','w')
+    f.write('amplitude, pi timing, gps coord, gps timing')
+    while(True):
+        time.sleep(5)
+        on_off=0
+        timing=coms.start_time
+        
+        while(swi.read_switch()==True):
+            if(on_off==0):
+                coms.turn_on()
+            on_off=1
+            gps.get_coords()
+            gps.get_time()
+            f.write('%s,%s,%s,%s'%(coms.amplitude,timing,gps.coords,gps.time))#saves amplitude and apporx time of pulse
+            timing=timing+coms.period/10**6#increment by the period of pulses. hopefully it won't be too far off from the rpi clock timing
+            time.sleep(coms.period/10**6)
+
+        coms.turn_off()
+
+def camera():
+    try:
+        cam=PiCamera()
+        cam.resolution(1920,1080)
+        cam.start_preview()
+        time.sleep(2)
+        camera.capture('fromflight.jpg')
+        camera.close()
+    except:
+        print('camera not connected')
+
 
 #make class for switch to clean up code a little
 class switch():
@@ -116,29 +156,5 @@ class pulser_comms():
     
 
 if __name__=='__main__':
-    coms=pulser_comms() #initalize pulser comms
-    swi=switch() #initialize switch class
-    gps=gps_comms()
-    coms.amplitude=1000 #amps of pulse in V
-    coms.period=10**6 #time between pulse in micro s
-
-    f=open('data.txt','w')
-    f.write('amplitude, pi timing, gps coord, gps timing')
-    while(True):
-        time.sleep(5)
-        on_off=0
-        timing=coms.start_time
-        
-        while(swi.read_switch()==True):
-            if(on_off==0):
-                coms.turn_on()
-            on_off=1
-            gps.get_coords()
-            gps.get_time()
-            f.write('%s,%s,%s,%s'%(coms.amplitude,timing,gps.coords,gps.time))#saves amplitude and apporx time of pulse
-            timing=timing+coms.period/10**6#increment by the period of pulses. hopefully it won't be too far off from the rpi clock timing
-            time.sleep(coms.period/10**6)
-
-        coms.turn_off()
-
+    main()
 
