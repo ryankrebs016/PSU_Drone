@@ -1,3 +1,4 @@
+from sys import byteorder
 import time
 import numpy as np
 import serial
@@ -6,13 +7,13 @@ try:
     from picamera import PiCamera
 except:
     print('pi modules not loaded')
-import struct
+
 
 
 #call this script when the pi is started up. Then use the switch to turn on pulsing.
 
 
-pulser_port='dev/serial0' #define which port to use, in this case serial 0
+pulser_port='/dev/serial0' #define which port to use, in this case serial 0
 pulser_baud=112500 #define pulser baud rate. ie frequency in which pi sends out bits
 timeout=1
 
@@ -25,7 +26,7 @@ def main():
     time.sleep(10) #let run for a few seconds to obsrve pulses on scope
     coms.turn_off() #shuts off pulsing
     exit() #testing comms to pulser for now
-    swi=switch() #initialize switch class
+    ins=inputs() #initialize switch class
     gps=gps_comms() #initialize gps comms 
     f=open('data.txt','w')
     f.write('amplitude, pi timing, gps coord, gps timing')
@@ -60,13 +61,19 @@ def camera():
 
 
 #make class for switch to clean up code a little
-class switch():
+class inputs():
     def __init__(self):
-        self.pin=18
+        self.switch_pin=18
+        self.pps_pin=12
         gpio.setmode(gpio.BCM)
-        gpio.setup(self.pin,gpio.INPUT)
+        gpio.setup(self.switch_pin,gpio.INPUT)
+        gpio.setup(self.pps_pin,gpio.INPUT)
+        gpio.add_event_detect(self.pps_pin,gpio.RISING,callback=triggered,bouncetime=.1)
     def read_switch(self):
         return gpio.INPUT(self.pin)
+    def triggered():
+        print('saw a pps')
+
 
 class gps_comms():
     print('holding')
@@ -80,9 +87,9 @@ class pulser_comms():
         self.period=100000 #period between pulses
         self.read_write=1 #define read or write bit
         self.flag='0101' #defines flag bits 'abcd' a=read only vcc error, b=enable pulsing, enable eternal triggering, enable high voltage supply
-        #self.pulser=serial.Serial(pulser_port,pulser_baud,timeout=1)
+        self.pulser=serial.Serial(pulser_port,pulser_baud,timeout=1)
         self.start_time=0
-        self.code='bbbbHIb' #format of data used in struct module. b=1 byte, H= unsigned short 2bytes, I= unsigned int 4bytes
+        
 
     #build packet to send to the pulser
     def build_pulsar_packet(self,amplitude,period,read_write,flag):
@@ -93,15 +100,56 @@ class pulser_comms():
         io=0b00000000 #defined byte for input or output status
         if(read_write==1):
             io=0b00000001
-        amp_bits=self.convert_voltage_to_dec(amplitude) #gets the int value corresponding to a voltage (V)
-        per_bits=self.convert_period_to_dec(period) #gets the int value corresponding to a period (uS)
-        #handle crc : empty for now
-        to_send=struct.pack(self.code,preamble,size,command_code,io,amp_bits,per_bits,flag) #build byte array from previous byte pieces
+        amp_dec=self.convert_voltage_to_dec(amplitude) #gets the int value corresponding to a voltage (V)
+        amp_bits=amp_dec.to_bytes(2,byteorder='big')
         
+        per_dec=self.convert_period_to_dec(period) #gets the int value corresponding to a period (uS)
+        per_bits=per_dec.to_bytes(4,byteorder='big')
+ 
+        to_send_dec=[preamble,size,command_code,io,amp_bits,per_bits,flag]
+        to_send_hex=[]
+        for i in range(len(to_send_dec)-1):
+            if(len(to_send_dec[i])>1):
+                for i in range(len(to_send_dec[i])):
+                    to_send_hex.append(to_send_dec.to_bytes(1,byteorder='big'))
+            else:
+                to_send_hex.append(to_send_dec.to_bytes(1,byteorder='big'))
+
+        crc_int=self.crc16(to_send_dec,13)
+        crc_hex=crc_int.to_bytes(2,byteorder='big')
+        to_send_hex.append(crc_hex)
+
         return to_send #return array which should be used in serial.write()
-    
-    def build_flag_byte(flag): #empty for now. If we need more control over flag byte this can be created
+
+    def crc16(self,data, no):
+        if(type(data[0])==bytes):
+            for i in range(np.size(data)):
+                data[i]=int.from_bytes(data[i],byteorder='big')
+        crc = 0xffff
+        poly = 0xa001               # Polynomial used for Modbus RS485 applications
+        temp = no
+
+        while True:
+            crc ^= data[temp - no]        
+            print(data[temp-no])
+            for i in range(0, 8):
+                print(crc)
+                if crc & 0x0001:
+                    crc = (crc>>1) ^ poly
+                else:
+                    crc >>= 1
+                            
+            no -= 1
+
+            if no == 0:
+                break
+
+        return crc & 0xffff
+
+
+    def build_flag_byte(self,flag): #empty for now. If we need more control over flag byte this can be created
         return 0
+
     def convert_voltage_to_dec(self,amplitude): #gets unsigned short int value from a voltage
         if(amplitude<1000):
             print('below range')
@@ -136,15 +184,15 @@ class pulser_comms():
     
     #read packet returned from the pulser, either after send read command or from the normal response
     def read_pulser_response(self,response): #unpacks data from response and print ampltiude and period to CL
-        rec=struct.unpack(self.code,response)
-        print(self.convert_dec_to_voltage(rec[4]),'V')
-        print(self.convert_dec_to_period(rec[5]),'uS')
+        
+        print(self.convert_dec_to_voltage(int.from_bytes(response[4:5],byteorder='big')),'V')
+        print(self.convert_dec_to_period(int.from_bytes(response[6:9],byteorder='big')),'uS')
 
         #create general function to read the contents of a returned packet
     def turn_on(self):#will be used to turn on pulsing w/ pulser period
         self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,1,0b00000101))
-        start_time=time()
-        time.sleep(.1)
+        start_time=time()   
+        time.sleep(.5)
         returned_bytes=self.pulser.read()
         self.read_pulser_response(returned_bytes)
 
@@ -153,8 +201,8 @@ class pulser_comms():
 
     def request_info(self):#sends byte array to request info from the pulser
         self.pulser.write(self.build_pulsar_packet(self.amplitude,self.period,0,0b00000000))
-        time.sleep(.1)
-        returned_bytes=self.pulser.read()
+        time.sleep(.5)
+        returned_bytes=self.pulser.read(13)
         self.read_pulser_response(returned_bytes)
     
 
