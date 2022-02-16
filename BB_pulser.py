@@ -9,23 +9,32 @@ import Adafruit_BBIO.GPIO as gpio
 
 
 def main():
-    options='\n 1:turn on pulser without trigger\n 2:turn on pulser with trigger\n 3:Request info \n 4:test ext trigger\n 5:turn off pulser'
+    options=' 1:turn on pulser without trigger\n 2:turn on pulser with trigger\n 3:Request info \n 4:test ext trigger\n 5:adjust voltagre and period\n 6:turn off pulser\n 7:turn off pulser and exit code'
     coms=pulser_comms() #initalize pulser comms
     coms.amplitude=1000 #amplitude of pulse in V
     coms.period=5E5 #time between pulses in micro s when using pulser's timing
-    try:
-        while(1):
-            option=input(options='\n 1:turn on pulser without trigger\n 2:turn on pulser with trigger\n 3:Request info \n 4:test ext trigger\n 5:change voltage and amplitude\n 6:turn off pulser\n')
+    coms.turn_on(1)
+    coms.turn_off()
+    exit()
+    while(1):
+        print(options)
+        option=input()
+        print('-----------------------------')
+        try:
             if(option==1):coms.turn_on(0)
             elif(option==2):coms.turn_on(1)
             elif(option==3):coms.request_info()
             elif(option==4):coms.test_ext_trigger()
             elif(option==5):coms.adjust_voltage_and_period()
             elif(option==6):coms.turn_off()
-            time.sleep(1)
-    except:
-        print("ending code")
-        exit()
+            elif(option==7):
+                try:coms.turn_off()
+                except:exit()
+        except: print('error doing something. try again or exit')
+        time.sleep(1)
+        
+    print("error, ending code")
+    exit()
     print('Voltage set to %s V. Period set to %s uS'%(coms.amplitude,coms.period))
     coms.turn_on(0) #run class function which turns on pulser and enables pulsing
     time.sleep(10)
@@ -67,19 +76,19 @@ class pulser_comms():
         #self.flag='0101' #defines flag bits 'abcd' a=read only vcc error, b=enable pulsing, enable eternal triggering, enable high voltage supply]
         self.flag=0b00000000
         self.pulser=serial.Serial(port=self.pulser_port,baudrate=self.pulser_baud,timeout=self.timeout)
-        self.pulser_rx_pin=14
-        self.pulser_tx_pin=16
-        self.pulser_tg_pin=18
-        gpio.setup(self.pulser_rx_pin,gpio.OUT,initial=gpio.high)
-        gpio.setup(self.pulser_tx_pin,gpio.OUT,initial=gpio.low)
-        gpio.setup(self.pulser_tg_pin,gpio.OUT,initial=gpio.low)
+        self.pulser_rx_pin='P9_14'
+        self.pulser_tx_pin='P9_16'
+        self.pulser_tg_pin='P9_18'
+        gpio.setup(self.pulser_rx_pin,gpio.OUT,initial=gpio.HIGH)
+        gpio.setup(self.pulser_tx_pin,gpio.OUT,initial=gpio.LOW)
+        gpio.setup(self.pulser_tg_pin,gpio.OUT,initial=gpio.LOW)
 
     def set_RS_tx(self):
-        gpio.output(self.pulser_rx_pin, gpio.low)
-        gpio.output(self.pulser_tx_pin,gpio.low)
+        gpio.output(self.pulser_rx_pin, gpio.LOW)
+        gpio.output(self.pulser_tx_pin,gpio.LOW)
     def set_RS_rx(self):
-        gpio.output(self.pusler_rx_pin,gpio.high)
-        gpio.output(self.pulser_tx_pin,gpio.high)
+        gpio.output(self.pulser_rx_pin,gpio.HIGH)
+        gpio.output(self.pulser_tx_pin,gpio.HIGH)
 
     #build packet to send to the pulser
     def build_pulsar_packet(self,amplitude,period,read_write,flag):
@@ -93,7 +102,7 @@ class pulser_comms():
 
         
         amp_bits=amplitude.to_bytes(2,byteorder='big')
-        per_bits=period.to_bytes(4,byteorder='big')
+        per_bits=int(period).to_bytes(4,byteorder='big')
  
         to_send_dec=[preamble,size,command_code,io,amp_bits[1],amp_bits[0],per_bits[3],per_bits[2],per_bits[1],per_bits[0],flag]
    
@@ -111,9 +120,9 @@ class pulser_comms():
 
         while True:
             crc ^= data[temp - no]        
-            print(data[temp-no])
+            
             for i in range(0, 8):
-                print(crc)
+                
                 if crc & 0x0001:
                     crc = (crc>>1) ^ poly
                 else:
@@ -128,7 +137,7 @@ class pulser_comms():
     #read packet returned from the pulser, either after send read command or from the normal response
     def read_pulser_response(self,response): #unpacks data from response and print ampltiude and period to CL
 
-        voltage=int.from_bytes(response[4:5],byteorder='little')
+        voltage=int.from_bytes(response[4:6],byteorder='little')
         period=int.from_bytes(response[6:10],byteorder='little')
         flag=response[10]
         print('Amplitude at %s V'%voltage)
@@ -221,9 +230,9 @@ class pulser_comms():
 
         try:
             while(1):
-                gpio.output(self.pulser_tg_pin,gpio.high)
+                gpio.output(self.pulser_tg_pin,gpio.HIGH)
                 time.sleep(0.05)
-                gpio.output(self.pulser_tg_pin,gpio.low)
+                gpio.output(self.pulser_tg_pin,gpio.LOW)
                 time.sleep(1)
         except:
             print('\n Exit ext trigger loop')
