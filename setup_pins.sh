@@ -4,6 +4,9 @@ config-pin P9_21 uart
 config-pin P9_22 uart
 config-pin P9_23 gpio
 config-pin P9_15 gpio
+config-pin P9_14 gpio
+config-pin P9_16 gpio
+config-pin P9_18 gpio
 
 echo out > /sys/class/gpio/gpio48/direction
 echo in > /sys/class/gpio/gpio49/direction
