@@ -3,6 +3,8 @@ Code for Beacon's drone at psu
 
 Requirements - RTKLIB, Adafruit_BBIO (not needed?)
 
+Beaglebones running debian 10 (buster), latest release on beaglebone website
+
 -BB_pulser.py holds the scripts for communicating with the pulser with a beaglebone black
   through the pmod rs485 adapter
   
