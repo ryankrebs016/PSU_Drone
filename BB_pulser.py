@@ -3,12 +3,23 @@ import time
 import numpy as np
 import serial
 import Adafruit_BBIO.GPIO as gpio
+import sys
 
 #call this script when the pi is started up. Then use the switch to turn on pulsing.
 
 
 
 def main():
+    if(np.size(sys.argv)==2):
+        drone_pulse=pulser_comms()
+        if(sys.argv[1]==1):
+            drone_pulse.amplitude=1500
+            drone_pulse.period=5E5
+            drone_pulse.turn_on(1)
+        if(sys.argv[1]==0):
+            drone_pulse.turn_off()
+        exit()
+
     options=' 1:turn on pulser without trigger\n 2:turn on pulser with trigger\n 3:Request info \n 4:test ext trigger\n 5:adjust voltagre and period\n 6:turn off pulser\n 7:turn off pulser and exit code'
     coms=pulser_comms() #initalize pulser comms
     coms.amplitude=1000 #amplitude of pulse in V
