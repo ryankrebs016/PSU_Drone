@@ -6,7 +6,7 @@ then
 	exit 0
 fi
 
-sleep 5
+sleep 2
 pid_str=$(pgrep str2str)
 sw=$(cat /sys/class/gpio/gpio49/value)
 while :
@@ -20,7 +20,7 @@ do
 		into_log="$log$ti"
 		echo $into_log >> /home/debian/bb_log.txt
 		echo "killing str and turning off pulser"
-		python3 pulser.py 0
+		python3 BB_pulser.py 0
 		pkill "str2str"
 	fi
 	sw=$tem

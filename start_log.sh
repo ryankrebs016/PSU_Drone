@@ -6,7 +6,7 @@ then
 	exit 0
 fi
 
-sleep 4.5
+sleep 1.5
 
 sw=$(cat /sys/class/gpio/gpio49/value)
 
@@ -21,7 +21,7 @@ do
 		into_log="$log$ti"
 		echo $into_log >> /home/debian/bb_log.txt
 		tim=$( date +%d%m%y%H%M%S )
-		python3 pulser.py 1
+		python3 BB_pulser.py 1
 		str2str -in serial://ttyS2:115200#ubx -out /home/debian/gps_log/$tim.ubx
 	fi
 	sw=$tem
