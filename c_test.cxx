@@ -14,18 +14,19 @@ using namespace std;
 class config
 {    
     public:
-        string file_dir;
-        string file_name;
-        double goal_lat:
-        double goal_lon;
-        double goal_pulse_rate;
-        double goal_amplitude;
+    string file_dir;
+    string file_name;
+    double goal_lat;
+    double goal_lon;
+    double goal_pulse_rate;
+    double goal_amplitude;
 
-        void load_config();
-}
+    void load_config();
+    void set_config();
+};
 void config::load_config()
 {
-    ifstream file("/config/read_in_config.dat","r");
+    fstream file("/config/read_in_config.dat");
     string line="";
     while(getline(file,line))
     {
@@ -39,10 +40,10 @@ void config::load_config()
     }
     file.flush();
     file.close();
-}
+};
 void config::set_config()
 {
-    ifstream file("/config/read_in_config.dat","w");
+    fstream file("/config/read_in_config.dat");
     file<<"file_dir="<<file_dir<<endl;
     file<<"file_name="<<file_name<<endl;
     file<<"goal_lat="<<goal_lat<<endl;
@@ -51,33 +52,35 @@ void config::set_config()
     file<<"goal_amplitude="<<goal_amplitude<<endl;
     file.flush();
     file.close();
-}
+};
 
-class dumpy
+class gps_dump
 {
     public:
         char * buffer;
 
         short int max_buff_size=2048;
 
-        void dumping(string filename);
+        void dumping(string filename,char * buffer,short index,short n_to_dump);
         
 
-}
-void dumpy::dumping(string filename,char * buffer,short index,short n_to_dump)
+};
+void gps_dump::dumping(string filename,char * buffer,short index,short n_to_dump)
 {
-    ifstream outfile(filename.c_str(),"w");
+    fstream outfile(filename.c_str());
     short temp_spot=index;
-    for(int i = index;i<index+n_to_save;i++)
+    for(int i = index;i<index+n_to_dump;i++)
     {
-        if(index+i>max_buf_size)temp_spot=index+i-max_buff_size;
-        outfile>>buff[temp_spot];
+        if(index+i>max_buff_size)temp_spot=index+i-max_buff_size;
+        outfile>>buffer[temp_spot];
     }
     outfile.flush();
     outfile.close();
 
-}
-void decode_coords(char * returned_lat, char * returned_lon, double * lat, double * lon)
+};
+void decode_coords(char * returned_lat, char * returned_lon, double * lat, double * lon);
+bool should_pulse(double lat, double lon);
+
 
 const string uart_port="/dev/ttyS1";
 const int uart_speed=115200;
@@ -91,11 +94,11 @@ int main()
     const char ubx_class=0x01;
     const char pvt_id=0x07;
     
-
+    
     char packet_size;
     char buf[2048];
-    dumpy dump_contents;
-    dump_contents.buffer=*buf;
+    gps_dump GPS;
+    GPS.buffer=buf;
     double lon,lat;
     
     config=open(config_file.c_str(),"r");
@@ -106,19 +109,65 @@ int main()
     output_file+=".dat";
 
     struct tty;
-    uart=open(uart_port,"rw");
-
-    //try initial
-    int num_bytes_in_buf=read(uart,&buf,5)
-
-    for(int i=0;i<5;i++)
+    uart=open(uart_port);
+    int index;
+    int first_byte,last_byte;
+    bool to_push_back;
+    while(false)//for now leave false but should be true
     {
-        if(buf[i]==sync_bit && buf[i+1]==preamble)packet_size=atof(buf[4])
-    }
+        //try initial
+    int num_bytes_in_buf=read(uart,&buf+index,5)
+
+    for(int i = index;i<num_bytes_in_buf;i++)
+    {
+        if(buf[i]==sync_bit && buf[i+1]==preamble)
+        {
+            packet_size=atof(buf[index+4]);
+            first_byte=i;
+            last_byte=packet_size+i+2;
+            if(last_byte>num_bytes_in_buf+first) //grab more
+            if(last_byte>2048)//loop around
+            break;
+        }
 
     char returned_lon[4];
     char returned_lat[4];
+    //place recieved bytes into returned arrays
+    
     decode_coords(&returned_lat, &returned_lon,&lat,&lon);
+    should_pulse(lon,lat);
+    
+    }
+    
 
 
+}
+
+void decode_coords(char * returned_lat, char * returned_lon, double * lat, double * lon)
+{
+    //convert returned values to human readable form
+}
+bool should_pulse(double lat,double lon) //handles reading/writing pusling file which "will" be changed so a daemon reads that file to decide pusling
+{
+    //more complicated stuff
+    bool pulse=true;
+    fstream file("/config/pulse.txt")
+    string temp="";
+    getline(temp,file);
+    bool file_pulse=(atof(temp)==1);
+
+    if(pulse==file_pulse)
+    {
+        //no change
+    }
+
+    else
+    {
+        write(file,pulse);
+    }
+
+    file.flush();
+    file.close();
+
+    return pulse;
 }
